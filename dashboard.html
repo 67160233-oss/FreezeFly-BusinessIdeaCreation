@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FreezeFly — Business Idea Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:#0a1628; --panel:#0f2038; --panel-2:#13284a; --line:rgba(255,255,255,0.08); --line-2:rgba(255,255,255,0.14);
+    --text:#e7edf3; --text-2:#c5d0dc; --muted:#7c8ba1; --muted-2:#5b6b80;
+    --amber:#f4a100; --cyan:#38bdf8; --green:#34d399; --red:#f87171;
+    --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:var(--navy); color:var(--text); }
+  body { font-family:'Kanit', sans-serif; overflow-x:hidden; padding-bottom:env(safe-area-inset-bottom,0px); }
+  h1,h2,h3,h4 { margin:0; font-weight:600; }
+  p { margin:0; }
+  b { color:var(--text); }
+  .mono { font-family:var(--mono); }
+
+  /* ---------------- แถบความคืบหน้าแบบจอแผนที่การบิน ---------------- */
+  #flightStrip { position:sticky; top:0; z-index:50; padding-top:env(safe-area-inset-top,0px);
+                 background:rgba(10,22,40,0.92); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .strip-inner { max-width:1200px; margin:0 auto; padding:12px 24px; display:flex; align-items:center; gap:18px; }
+  .strip-brand { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--text); white-space:nowrap; }
+  .strip-brand svg { width:20px; height:20px; color:var(--amber); }
+  .strip-code { font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap; }
+  .strip-track { position:relative; flex:1; height:2px; background:var(--line-2); border-radius:2px; min-width:80px; }
+  .strip-fill { position:absolute; left:0; top:0; height:2px; width:0; background:var(--amber); border-radius:2px; }
+  .strip-wp { position:absolute; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px; border-radius:50%;
+              background:var(--navy); border:1.5px solid var(--muted-2); transition:all .2s; }
+  .strip-wp.passed { border-color:var(--amber); background:var(--amber); }
+  .strip-plane { position:absolute; top:50%; left:0; width:22px; height:22px; margin:-11px 0 0 -11px; color:var(--amber); }
+  .strip-stage { font-family:var(--mono); font-size:12px; color:var(--cyan); white-space:nowrap; min-width:150px; text-align:right; }
+
+  main { max-width:1200px; margin:0 auto; padding:0 24px 64px; }
+  .waypoint { padding:72px 0 8px; }
+  .wp-eyebrow { font-family:var(--mono); font-size:12.5px; color:var(--amber); letter-spacing:.04em; }
+  .wp-title { font-size:30px; line-height:1.3; margin-top:10px; max-width:32ch; }
+  .wp-lede { font-size:15px; color:var(--muted); margin-top:10px; max-width:70ch; line-height:1.7; }
+
+  /* ---------------- HERO ---------------- */
+  #wp-hero { padding-top:56px; min-height:72vh; display:flex; align-items:center; }
+  .hero-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr); gap:48px; align-items:center; width:100%; }
+  .hero-title { font-size:clamp(48px,7vw,88px); line-height:1; letter-spacing:-0.02em; margin-top:14px; }
+  .hero-tag { font-size:19px; color:var(--text-2); margin-top:22px; max-width:42ch; line-height:1.6; }
+  .hero-cue { font-family:var(--mono); font-size:12.5px; color:var(--muted); margin-top:40px; }
+  .flightpath { width:100%; height:auto; }
+  .flightpath .route { stroke-dasharray:6 7; animation:dash 2.4s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset:-26; } }
+
+  /* ---------------- แผงทั่วไป (สไตล์หน้าปัดเครื่องมือ) ---------------- */
+  .panel, .kpi-card, .insight, .readout, .step, .table-panel, .filter-bar {
+    background:var(--panel); border:1px solid var(--line); border-radius:14px; }
+  .panel { padding:22px 24px; }
+  .panel h3 { font-size:16px; }
+  .desc { font-size:13px; color:var(--muted); margin-top:3px; line-height:1.55; }
+  .hint { font-size:12px; color:var(--cyan); margin-top:4px; }
+  .source-note { font-family:var(--mono); font-size:11.5px; color:var(--muted-2); margin-top:12px; }
+
+  .readout-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:28px; }
+  .readout { padding:30px 32px; position:relative; overflow:hidden; }
+  .readout::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--amber); }
+  .readout.cyan::before { background:var(--cyan); }
+  .readout .big { font-family:var(--mono); font-size:52px; font-weight:600; color:var(--amber); line-height:1.1; }
+  .readout.cyan .big { color:var(--cyan); }
+  .readout h3 { font-size:17px; margin-top:12px; }
+  .readout p { font-size:14px; color:var(--muted); margin-top:8px; line-height:1.6; }
+
+  .steps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:28px; }
+  .step { padding:24px; position:relative; }
+  .step .n { font-family:var(--mono); font-size:12px; color:var(--amber); }
+  .step h4 { font-size:18px; margin-top:10px; }
+  .step p { font-size:14px; color:var(--muted); margin-top:8px; line-height:1.6; }
+  .step:not(:last-child)::after { content:'→'; position:absolute; right:-14px; top:50%; transform:translateY(-50%);
+       color:var(--muted-2); font-size:18px; z-index:1; }
+
+  /* ---------------- ตัวกรอง ---------------- */
+  .filter-bar { padding:16px 22px; display:flex; align-items:center; gap:24px; flex-wrap:wrap; margin:28px 0 16px; }
+  .filter-group { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .filter-label { font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .seg { display:flex; border:1px solid var(--line-2); border-radius:9px; overflow:hidden; }
+  .seg button { border:none; background:transparent; color:var(--muted); font-family:'Kanit',sans-serif; font-size:14px; padding:7px 15px; cursor:pointer; transition:.15s; }
+  .seg button + button { border-left:1px solid var(--line-2); }
+  .seg button.active { background:var(--amber); color:var(--navy); font-weight:600; }
+  .pill { border:1px solid var(--line-2); background:transparent; color:var(--muted); font-family:var(--mono); font-size:12.5px;
+          padding:6px 12px; border-radius:999px; cursor:pointer; transition:.15s; }
+  .pill.active { border-color:var(--cyan); color:var(--cyan); background:rgba(56,189,248,0.08); }
+  .reset-link { font-size:13px; color:var(--muted); cursor:pointer; text-decoration:underline; margin-left:auto; }
+  .reset-link:hover { color:var(--text); }
+
+  /* ---------------- KPI ---------------- */
+  .kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  .kpi-card { padding:20px 22px; }
+  .kpi-label { font-size:13px; color:var(--muted); }
+  .kpi-value { font-family:var(--mono); font-size:28px; font-weight:600; margin-top:6px; color:var(--text); }
+  .kpi-delta { display:inline-flex; gap:4px; font-size:11.5px; font-weight:600; margin-top:8px; padding:3px 9px; border-radius:999px; }
+  .kpi-delta.up { background:rgba(52,211,153,0.12); color:var(--green); }
+  .kpi-delta.down { background:rgba(248,113,113,0.12); color:var(--red); }
+  .kpi-note { display:inline-block; font-size:11px; color:var(--muted-2); margin-top:8px; }
+  .spark { height:38px; margin-top:12px; position:relative; overflow:hidden; }
+  .spark canvas { position:absolute; left:0; top:0; }
+
+  /* ---------------- Insight ---------------- */
+  .insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:16px; }
+  .insight { padding:18px 20px; display:flex; gap:12px; animation:fadeUp .45s ease both; border-left:3px solid var(--cyan); }
+  .insight:nth-child(2) { animation-delay:.06s; } .insight:nth-child(3) { animation-delay:.12s; }
+  .insight-icon { font-size:20px; line-height:1.2; }
+  .insight-title { font-family:var(--mono); font-size:12px; color:var(--cyan); }
+  .insight p { font-size:13.5px; color:var(--text-2); margin-top:4px; line-height:1.6; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+  /* ---------------- กราฟ ---------------- */
+  .panel-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:16px; margin-bottom:16px; }
+  .panel-row2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .panel-grid > .panel { display:flex; flex-direction:column; }
+  .panel-grid > .panel:first-child .chart-box { flex:1; min-height:260px; height:auto !important; }
+  .chart-box { overflow:hidden; margin-top:12px; }
+  .chart-box canvas { position:absolute; left:0; top:0; }
+  .legend-row { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; padding:4px 8px;
+                border-radius:8px; cursor:pointer; transition:background .12s; }
+  .legend-row:hover { background:rgba(255,255,255,0.05); }
+  .legend-row b { font-family:var(--mono); }
+  .legend-name { display:flex; align-items:center; gap:8px; color:var(--text-2); font-family:var(--mono); }
+  .legend-sw { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+  /* ---------------- Tooltip ---------------- */
+  #tooltip { position:fixed; left:0; top:0; z-index:100; pointer-events:none; opacity:0; transition:opacity .12s;
+             background:var(--panel-2); border:1px solid rgba(56,189,248,0.35); color:var(--text);
+             padding:10px 12px; border-radius:10px; font-size:12.5px; line-height:1.6;
+             box-shadow:0 12px 32px rgba(0,0,0,.45); min-width:180px; max-width:270px; }
+  .tip-title { font-family:var(--mono); font-weight:600; margin-bottom:4px; color:var(--amber); }
+  .tip-row { display:flex; justify-content:space-between; gap:16px; color:var(--muted); }
+  .tip-row b { color:var(--text); font-family:var(--mono); font-weight:500; }
+  .tip-sw { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:6px; }
+
+  /* ---------------- What-if ---------------- */
+  .whatif-grid { display:grid; grid-template-columns:330px minmax(0,1fr); gap:32px; margin-top:8px; align-items:start; }
+  .slider-row { margin-bottom:18px; }
+  .slider-row label { display:flex; justify-content:space-between; font-size:14px; color:var(--text-2); }
+  .slider-row label b { color:var(--amber); font-family:var(--mono); font-size:16px; }
+  .slider-row input[type=range] { width:100%; accent-color:var(--amber); margin-top:8px; cursor:pointer; }
+  .slider-scale { display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:var(--muted-2); }
+  .slider-help { font-size:11.5px; color:var(--muted-2); margin-top:2px; }
+  .wi-stat { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--line); font-size:13.5px; color:var(--text-2); }
+  .wi-stat b { font-family:var(--mono); font-size:14px; font-weight:500; }
+  .wi-delta { font-size:11px; font-weight:600; padding:2px 7px; border-radius:999px; margin-left:4px; background:rgba(255,255,255,0.06); color:var(--muted); }
+  .wi-delta.up { background:rgba(52,211,153,0.12); color:var(--green); }
+  .wi-delta.down { background:rgba(248,113,113,0.12); color:var(--red); }
+  .wi-verdict { background:rgba(244,161,0,0.08); border:1px solid rgba(244,161,0,0.25); color:var(--text-2);
+                border-radius:10px; padding:12px 14px; font-size:13px; line-height:1.6; margin-top:16px; }
+  .wi-legend { display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:8px; }
+  .wi-legend span { display:flex; align-items:center; gap:6px; }
+  .lg-dash { width:16px; border-top:1.5px dashed var(--muted); }
+  .lg-ring { width:10px; height:10px; border:2px solid var(--cyan); border-radius:50%; }
+  .lg-dot { width:10px; height:10px; background:var(--amber); border-radius:50%; }
+
+  /* ---------------- ลงจอด: โมเดลรายได้ ---------------- */
+  .ask-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:28px; }
+  .ask-grid .panel h4 { font-size:16px; }
+  .ask-grid .panel h4.model { color:var(--amber); }
+  .ask-grid .panel h4.next { color:var(--cyan); }
+  .ask-grid ul { list-style:none; padding:0; margin:16px 0 0; display:flex; flex-direction:column; gap:12px; }
+  .ask-grid li { font-size:14.5px; color:var(--text-2); padding-left:20px; position:relative; line-height:1.55; }
+  .ask-grid li::before { content:''; position:absolute; left:0; top:10px; width:9px; height:2px; background:var(--amber); }
+  .ask-grid .next + ul li::before { background:var(--cyan); }
+
+  /* ---------------- ภาคผนวก: ตารางข้อมูลดิบ ---------------- */
+  .table-panel { margin-top:16px; padding:0; overflow:hidden; }
+  .table-panel summary { cursor:pointer; padding:18px 24px; font-size:15px; font-weight:600; list-style:none; display:flex; justify-content:space-between; }
+  .table-panel summary::-webkit-details-marker { display:none; }
+  .table-panel summary .mono { font-size:12px; color:var(--muted); font-weight:400; }
+  .table-panel[open] summary { border-bottom:1px solid var(--line); }
+  .table-inner { padding:8px 24px 20px; }
+  .col-hint { font-size:12px; color:var(--muted); margin:8px 0 4px; line-height:1.6; }
+  .scroll-x { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+  th { text-align:right; padding:10px 12px; color:var(--muted); font-weight:500; border-bottom:1px solid var(--line-2); white-space:nowrap; }
+  td { text-align:right; padding:8px 12px; border-bottom:1px solid var(--line); white-space:nowrap; font-family:var(--mono); color:var(--text-2); }
+  th:nth-child(-n+3), td:nth-child(-n+3) { text-align:left; }
+  tbody tr:hover { background:rgba(56,189,248,0.05); }
+
+  footer { border-top:1px solid var(--line); margin-top:56px; }
+  .footer-inner { max-width:1200px; margin:0 auto; padding:28px 24px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .footer-inner p { font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+  @media (max-width:980px) {
+    .hero-grid, .readout-grid, .steps, .panel-grid, .panel-row2, .insight-grid, .whatif-grid, .ask-grid { grid-template-columns:minmax(0,1fr); }
+    .kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .step:not(:last-child)::after { display:none; }
+    .flightpath { max-width:420px; }
+  }
+  @media (max-width:600px) {
+    .kpi-grid { grid-template-columns:minmax(0,1fr); }
+    main { padding:0 16px 48px; }
+    .strip-inner { padding:10px 16px; gap:12px; }
+    .strip-brand span, .strip-code { display:none; }
+    .strip-stage { min-width:0; }
+    .wp-title { font-size:24px; }
+    .readout .big { font-size:40px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .insight { animation:none; } .flightpath .route { animation:none; }
+  }
+</style>
+
+</head>
+<body>
+
+<div id="flightStrip">
+  <div class="strip-inner">
+    <div class="strip-brand">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"></path></svg>
+      <span>FreezeFly</span>
+    </div>
+    <span class="strip-code">BKK</span>
+    <div class="strip-track" id="stripTrack">
+      <div class="strip-fill" id="stripFill"></div>
+      <svg class="strip-plane" id="stripPlane" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path transform="rotate(90 12 12)" d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+    </div>
+    <span class="strip-code">GOAL</span>
+    <span class="strip-stage" id="stripStage">กำลังขึ้นบิน…</span>
+  </div>
+</div>
+
+<main>
+
+  <section class="waypoint" id="wp-hero" data-stage="กำลังขึ้นบิน…">
+    <div class="hero-grid">
+      <div>
+        <p class="wp-eyebrow">BUSINESS IDEA CREATION · AEROSPACE &amp; AVIATION</p>
+        <h1 class="hero-title">FreezeFly</h1>
+        <p class="hero-tag">ระบบตรึงราคาตั๋วเครื่องบินล่วงหน้า ให้นักเดินทางล็อกราคาไว้ก่อนตัดสินใจจริง แทนที่จะเสี่ยงราคาพุ่งระหว่างรอ</p>
+        <p class="hero-cue">เลื่อนลงเพื่อเริ่มเที่ยวบิน — เส้นทางนี้มี 5 waypoint ↓</p>
+      </div>
+      <svg class="flightpath" id="heroPath" viewBox="0 0 440 300" aria-label="เส้นทางบินจำลองจาก BKK ไปยังจุดหมาย">
+        <path id="heroRoute" class="route" d="M40 240 Q 220 30 400 150" fill="none" stroke="#38bdf8" stroke-width="1.6" opacity="0.7"/>
+        <circle cx="40" cy="240" r="5" fill="#f4a100"/>
+        <circle cx="40" cy="240" r="11" fill="none" stroke="#f4a100" opacity="0.35"/>
+        <text x="30" y="268" fill="#7c8ba1" font-family="IBM Plex Mono, monospace" font-size="12">BKK</text>
+        <circle cx="400" cy="150" r="5" fill="#38bdf8"/>
+        <text x="372" y="134" fill="#7c8ba1" font-family="IBM Plex Mono, monospace" font-size="12">GOAL</text>
+        <g fill="#e7edf3">
+          <path d="M-11 -2.5 L-4 -2.5 L1.5 -10 L4 -10 L1 -2.5 L7 -2.5 L9 -5 L11 -5 L10 0 L11 5 L9 5 L7 2.5 L1 2.5 L4 10 L1.5 10 L-4 2.5 L-11 2.5 Q-13 0 -11 -2.5 Z"/>
+          <animateMotion dur="7s" repeatCount="indefinite" rotate="auto" path="M40 240 Q 220 30 400 150"/>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <section class="waypoint" id="wp-problem" data-stage="WP1 · ปัญหา & ตลาด">
+    <p class="wp-eyebrow">WAYPOINT 1 — ปัญหาและโอกาสตลาด</p>
+    <h2 class="wp-title">นักเดินทางตัดสินใจช้าแค่ไม่กี่วัน ราคาตั๋วก็เปลี่ยนไปแล้ว</h2>
+    <div class="readout-grid">
+      <div class="readout">
+        <div class="big" id="statFreezeRate">–</div>
+        <h3>ของคนที่ค้นหาเที่ยวบิน เลือก "ตรึงราคา" แทนการตัดสินใจทันที</h3>
+        <p>สะท้อนว่าความไม่แน่ใจเรื่องราคาคือจุดตัดสินใจสำคัญของนักเดินทาง ไม่ใช่แค่ตัวเที่ยวบินเอง</p>
+        <p class="source-note">ที่มา: ข้อมูลประมาณการ data/search-funnel.csv (12 เดือน)</p>
+      </div>
+      <div class="readout cyan">
+        <div class="big">~$1.0T</div>
+        <h3>ขนาดตลาดจองการเดินทางออนไลน์ทั่วโลก โตราว 8–10% ต่อปี</h3>
+        <p>การจองตั๋วเครื่องบินยังเป็นสัดส่วนใหญ่ของตลาด และแข่งขันกันด้านราคาสูง</p>
+        <p class="source-note">ที่มา: Ken Research / Value Market Research, รายงานตลาดท่องเที่ยวออนไลน์ 2026</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="waypoint" id="wp-solution" data-stage="WP2 · โซลูชัน">
+    <p class="wp-eyebrow">WAYPOINT 2 — โซลูชันของเรา</p>
+    <h2 class="wp-title">ตรึงราคาไว้ก่อน ค่อยตัดสินใจทีหลัง</h2>
+    <div class="steps">
+      <div class="step"><div class="n">01 / ค้นหา</div><h4>เห็นราคาปัจจุบันทันที</h4><p>ผู้ใช้ค้นเที่ยวบินตามต้นทาง-ปลายทางที่ต้องการ</p></div>
+      <div class="step"><div class="n">02 / ตรึงราคา</div><h4>ล็อกราคาไว้ 24–48 ชั่วโมง</h4><p>จ่ายค่าธรรมเนียม 5–8% ของราคาตั๋ว ยังไม่ต้องตัดสินใจทันที</p></div>
+      <div class="step"><div class="n">03 / ออกตั๋ว</div><h4>ชำระส่วนที่เหลือเมื่อพร้อม</h4><p>แปลงสิทธิ์เป็น E-Ticket ภายในเวลาที่กำหนด</p></div>
+    </div>
+  </section>
+
+  <section class="waypoint" id="wp-data" data-stage="WP3 · ข้อมูลเที่ยวบิน">
+    <p class="wp-eyebrow">WAYPOINT 3 — หลักฐานจากข้อมูล</p>
+    <h2 class="wp-title">ยอดจองและรายได้ 12 เดือนล่าสุด</h2>
+    <p class="wp-lede">ชี้เมาส์บนกราฟเพื่อดูตัวเลข คลิกเส้นทางในกราฟเพื่อเจาะลึก หรือใช้ตัวกรองด้านล่าง · ตัวเลขเป็นข้อมูลประมาณการสำหรับนำเสนอไอเดียธุรกิจ (ไม่ใช่ยอดขายจริง)</p>
+
+    <div class="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">ช่วงเวลา</span>
+        <div class="seg" id="dateSeg">
+          <button data-range="3">3 เดือน</button>
+          <button data-range="6">6 เดือน</button>
+          <button data-range="12" class="active">12 เดือน</button>
+        </div>
+      </div>
+      <div class="filter-group" id="routeFilters"><span class="filter-label">เส้นทาง</span></div>
+      <span class="reset-link" id="resetFilters">ล้างตัวกรอง</span>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="insight-grid" id="insights"></div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <h3>ยอดจองและรายได้รายเดือน</h3>
+        <p class="desc">แท่ง = รายได้รวม (ค่าตั๋ว + ค่าธรรมเนียมตรึงราคา) · เส้น = จำนวนที่จอง</p>
+        <div class="chart-box" style="position:relative; height:260px;"><canvas id="trendChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>สัดส่วนรายได้ต่อเส้นทาง</h3>
+        <p class="hint">คลิกชิ้นกราฟหรือชื่อเส้นทาง เพื่อดูเฉพาะเส้นทางนั้น</p>
+        <div class="chart-box" style="position:relative; height:200px;"><canvas id="shareChart"></canvas></div>
+        <div id="shareLegend" style="margin-top:10px; display:flex; flex-direction:column; gap:4px;"></div>
+      </div>
+    </div>
+
+    <div class="panel-row2">
+      <div class="panel">
+        <h3>Conversion Funnel</h3>
+        <p class="desc">ค้นหา → ตรึงราคา → ออกตั๋วจริง (ไม่ขึ้นกับตัวกรองเส้นทาง เพราะการค้นหายังไม่ผูกกับเส้นทางเดียว)</p>
+        <div class="chart-box" style="position:relative; height:220px;"><canvas id="funnelChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>ยอดจองต่อเส้นทาง</h3>
+        <p class="hint">คลิกแท่งเพื่อดูเฉพาะเส้นทางนั้น (คลิกซ้ำเพื่อดูทั้งหมด)</p>
+        <div class="chart-box" style="position:relative; height:220px;"><canvas id="routesChart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="waypoint" id="wp-whatif" data-stage="WP4 · ทดลองสมมติฐาน">
+    <p class="wp-eyebrow">WAYPOINT 4 — ทดลองสมมติฐาน (What-if)</p>
+    <h2 class="wp-title">ถ้าปรับค่าธรรมเนียมตรึงราคา รายได้จะเปลี่ยนอย่างไร</h2>
+    <p class="wp-lede">ลากแถบเลื่อน หรือคลิกบนเส้นกราฟ เพื่อเลือกอัตราค่าธรรมเนียม คำนวณจากข้อมูลตามตัวกรองใน Waypoint 3</p>
+    <div class="panel" style="margin-top:24px;">
+      <div class="whatif-grid">
+        <div>
+          <div class="slider-row">
+            <label for="wiFee">ค่าธรรมเนียมตรึงราคา <b id="wiFeeVal">6%</b></label>
+            <input type="range" id="wiFee" min="2" max="12" step="0.5" value="6">
+            <div class="slider-scale"><span>2%</span><span>ปัจจุบัน 6%</span><span>12%</span></div>
+          </div>
+          <div class="slider-row">
+            <label for="wiElas">ความไวต่อราคา <b id="wiElasVal">8%</b></label>
+            <input type="range" id="wiElas" min="0" max="20" step="1" value="8">
+            <p class="slider-help">ขึ้นค่าธรรมเนียม 1% → คนตรึงราคาลดลงกี่ %</p>
+          </div>
+          <div class="wi-stat"><span>รายได้ค่าธรรมเนียม</span><b id="wiFeeRev">-</b></div>
+          <div class="wi-stat"><span>จำนวนการตรึงราคา</span><b id="wiFreezes">-</b></div>
+          <div class="wi-stat"><span>ตั๋วที่ออกจากการตรึงราคา</span><b id="wiTickets">-</b></div>
+          <div class="wi-verdict" id="wiVerdict"></div>
+        </div>
+        <div>
+          <div class="chart-box" style="position:relative; height:290px;"><canvas id="whatifChart"></canvas></div>
+          <div class="wi-legend">
+            <span><i class="lg-dash"></i>ค่าธรรมเนียมปัจจุบัน 6%</span>
+            <span><i class="lg-ring"></i>รายได้สูงสุดที่ <b id="wiOptLabel">-</b></span>
+            <span><i class="lg-dot"></i>ค่าที่คุณเลือก</span>
+          </div>
+        </div>
+      </div>
+      <p class="source-note">โมเดลอย่างง่ายเพื่อประกอบการตัดสินใจ ไม่ใช่การพยากรณ์จริง · คิดเฉพาะรายได้ค่าธรรมเนียม ไม่รวมค่าตั๋ว</p>
+    </div>
+  </section>
+
+  <section class="waypoint" id="wp-ask" data-stage="WP5 · ลงจอด: ก้าวต่อไป">
+    <p class="wp-eyebrow">WAYPOINT 5 — ลงจอด: โมเดลรายได้และก้าวต่อไป</p>
+    <h2 class="wp-title">จากค่าธรรมเนียมตรึงราคา สู่แพลตฟอร์มจองตั๋วเต็มรูปแบบ</h2>
+    <div class="ask-grid">
+      <div class="panel">
+        <h4 class="model">แหล่งรายได้หลัก</h4>
+        <ul>
+          <li>ค่าธรรมเนียมตรึงราคา 5–8% ต่อรายการ (รายได้ปัจจุบัน ตามข้อมูลใน Waypoint 3)</li>
+          <li>ส่วนต่างค่าคอมมิชชันจากสายการบินคู่ค้าเมื่อออกตั๋วสำเร็จ</li>
+          <li>แพ็กเกจสมาชิกสำหรับนักเดินทางบ่อย (แผนระยะถัดไป)</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h4 class="next">สิ่งที่ต้องการต่อไป</h4>
+        <ul>
+          <li>ทดสอบกับผู้ใช้จริงกลุ่มแรก 100 คน เพื่อยืนยัน conversion rate</li>
+          <li>เจรจาคู่ค้าสายการบินเพื่อราคาตั๋วแบบ real-time</li>
+          <li>ขยายจำนวนเส้นทางและสกุลเงินที่รองรับ</li>
+        </ul>
+      </div>
+    </div>
+
+    <details class="table-panel">
+      <summary>ภาคผนวก: ข้อมูลดิบ (bookings-fact.csv) <span class="mono">คลิกเพื่อเปิด/ปิด ▾</span></summary>
+      <div class="table-inner">
+        <p class="col-hint">ยอดจอง = ซื้อตรง (ไม่ผ่านการตรึงราคา) + แปลงเป็นตั๋ว (มาจากการตรึงราคา) · แถวในตารางนี้คือแถวเดียวกับใน CSV เป๊ะ และกรองตามตัวกรองใน Waypoint 3</p>
+        <div class="scroll-x">
+          <table id="factTable">
+            <thead>
+              <tr>
+                <th>เดือน</th><th>เส้นทาง</th><th>สายการบิน</th><th>ยอดจอง</th><th>ซื้อตรง</th>
+                <th>ตรึงราคา</th><th>แปลงเป็นตั๋ว</th><th>ราคาเฉลี่ย/ใบ</th>
+                <th>รายได้ตั๋ว</th><th>รายได้ค่าธรรมเนียม</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <p>FREEZEFLY · BUSINESS IDEA CREATION · AEROSPACE &amp; AVIATION</p>
+    <p>DATA: /data · GROUP: GROUP.md</p>
+  </div>
+</footer>
+
+<div id="tooltip" role="tooltip"></div>
+
+<script>
+/* ======================= ข้อมูล (สร้างอัตโนมัติจาก data/*.csv) ======================= */
+const bookingsFact = [
+{month:"2025-10",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:111,direct_bookings:31,price_freezes_created:123,converted_to_booking:80,avg_ticket_price_thb:2155,ticket_revenue_thb:239205,freeze_fee_revenue_thb:15904},
+{month:"2025-11",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:129,direct_bookings:44,price_freezes_created:150,converted_to_booking:85,avg_ticket_price_thb:1978,ticket_revenue_thb:255162,freeze_fee_revenue_thb:17802},
+{month:"2025-12",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:146,direct_bookings:49,price_freezes_created:130,converted_to_booking:97,avg_ticket_price_thb:2016,ticket_revenue_thb:294336,freeze_fee_revenue_thb:15725},
+{month:"2026-01",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:159,direct_bookings:51,price_freezes_created:164,converted_to_booking:108,avg_ticket_price_thb:1694,ticket_revenue_thb:269346,freeze_fee_revenue_thb:16669},
+{month:"2026-02",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:183,direct_bookings:53,price_freezes_created:203,converted_to_booking:130,avg_ticket_price_thb:1618,ticket_revenue_thb:296094,freeze_fee_revenue_thb:19707},
+{month:"2026-03",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:265,direct_bookings:94,price_freezes_created:266,converted_to_booking:171,avg_ticket_price_thb:1900,ticket_revenue_thb:503500,freeze_fee_revenue_thb:30324},
+{month:"2026-04",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:310,direct_bookings:110,price_freezes_created:327,converted_to_booking:200,avg_ticket_price_thb:2104,ticket_revenue_thb:652240,freeze_fee_revenue_thb:41280},
+{month:"2026-05",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:321,direct_bookings:104,price_freezes_created:301,converted_to_booking:217,avg_ticket_price_thb:2060,ticket_revenue_thb:661260,freeze_fee_revenue_thb:37204},
+{month:"2026-06",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:382,direct_bookings:123,price_freezes_created:354,converted_to_booking:259,avg_ticket_price_thb:1600,ticket_revenue_thb:611200,freeze_fee_revenue_thb:33984},
+{month:"2026-07",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:468,direct_bookings:136,price_freezes_created:471,converted_to_booking:332,avg_ticket_price_thb:1644,ticket_revenue_thb:769392,freeze_fee_revenue_thb:46459},
+{month:"2026-08",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:373,direct_bookings:97,price_freezes_created:481,converted_to_booking:276,avg_ticket_price_thb:2178,ticket_revenue_thb:812394,freeze_fee_revenue_thb:62857},
+{month:"2026-09",route_code:"BKK-CNX",route_label:"BKK → CNX",airline:"AirAsia",bookings:430,direct_bookings:132,price_freezes_created:450,converted_to_booking:298,avg_ticket_price_thb:2078,ticket_revenue_thb:893540,freeze_fee_revenue_thb:56106},
+{month:"2025-10",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:45,direct_bookings:15,price_freezes_created:44,converted_to_booking:30,avg_ticket_price_thb:9044,ticket_revenue_thb:406980,freeze_fee_revenue_thb:23876},
+{month:"2025-11",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:60,direct_bookings:16,price_freezes_created:62,converted_to_booking:44,avg_ticket_price_thb:8259,ticket_revenue_thb:495540,freeze_fee_revenue_thb:30723},
+{month:"2025-12",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:73,direct_bookings:26,price_freezes_created:70,converted_to_booking:47,avg_ticket_price_thb:8470,ticket_revenue_thb:618310,freeze_fee_revenue_thb:35574},
+{month:"2026-01",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:66,direct_bookings:19,price_freezes_created:77,converted_to_booking:47,avg_ticket_price_thb:8239,ticket_revenue_thb:543774,freeze_fee_revenue_thb:38064},
+{month:"2026-02",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:58,direct_bookings:17,price_freezes_created:61,converted_to_booking:41,avg_ticket_price_thb:8791,ticket_revenue_thb:509878,freeze_fee_revenue_thb:32175},
+{month:"2026-03",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:78,direct_bookings:21,price_freezes_created:79,converted_to_booking:57,avg_ticket_price_thb:8622,ticket_revenue_thb:672516,freeze_fee_revenue_thb:40868},
+{month:"2026-04",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:70,direct_bookings:26,price_freezes_created:74,converted_to_booking:44,avg_ticket_price_thb:9190,ticket_revenue_thb:643300,freeze_fee_revenue_thb:40804},
+{month:"2026-05",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:120,direct_bookings:42,price_freezes_created:116,converted_to_booking:78,avg_ticket_price_thb:9415,ticket_revenue_thb:1129800,freeze_fee_revenue_thb:65528},
+{month:"2026-06",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:97,direct_bookings:35,price_freezes_created:90,converted_to_booking:62,avg_ticket_price_thb:9437,ticket_revenue_thb:915389,freeze_fee_revenue_thb:50960},
+{month:"2026-07",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:113,direct_bookings:38,price_freezes_created:108,converted_to_booking:75,avg_ticket_price_thb:8299,ticket_revenue_thb:937787,freeze_fee_revenue_thb:53778},
+{month:"2026-08",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:102,direct_bookings:27,price_freezes_created:123,converted_to_booking:75,avg_ticket_price_thb:9249,ticket_revenue_thb:943398,freeze_fee_revenue_thb:68258},
+{month:"2026-09",route_code:"BKK-HKG",route_label:"BKK → HKG",airline:"Thai Airways",bookings:106,direct_bookings:32,price_freezes_created:131,converted_to_booking:74,avg_ticket_price_thb:8258,ticket_revenue_thb:875348,freeze_fee_revenue_thb:64908},
+{month:"2025-10",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:25,direct_bookings:8,price_freezes_created:27,converted_to_booking:17,avg_ticket_price_thb:18789,ticket_revenue_thb:469725,freeze_fee_revenue_thb:30438},
+{month:"2025-11",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:33,direct_bookings:9,price_freezes_created:41,converted_to_booking:24,avg_ticket_price_thb:19265,ticket_revenue_thb:635745,freeze_fee_revenue_thb:47392},
+{month:"2025-12",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:37,direct_bookings:14,price_freezes_created:42,converted_to_booking:23,avg_ticket_price_thb:19304,ticket_revenue_thb:714248,freeze_fee_revenue_thb:48646},
+{month:"2026-01",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:40,direct_bookings:12,price_freezes_created:50,converted_to_booking:28,avg_ticket_price_thb:17776,ticket_revenue_thb:711040,freeze_fee_revenue_thb:53328},
+{month:"2026-02",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:51,direct_bookings:14,price_freezes_created:52,converted_to_booking:37,avg_ticket_price_thb:19448,ticket_revenue_thb:991848,freeze_fee_revenue_thb:60678},
+{month:"2026-03",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:56,direct_bookings:20,price_freezes_created:57,converted_to_booking:36,avg_ticket_price_thb:20103,ticket_revenue_thb:1125768,freeze_fee_revenue_thb:68752},
+{month:"2026-04",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:54,direct_bookings:15,price_freezes_created:59,converted_to_booking:39,avg_ticket_price_thb:19000,ticket_revenue_thb:1026000,freeze_fee_revenue_thb:67260},
+{month:"2026-05",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:74,direct_bookings:27,price_freezes_created:67,converted_to_booking:47,avg_ticket_price_thb:20473,ticket_revenue_thb:1515002,freeze_fee_revenue_thb:82301},
+{month:"2026-06",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:66,direct_bookings:21,price_freezes_created:80,converted_to_booking:45,avg_ticket_price_thb:18262,ticket_revenue_thb:1205292,freeze_fee_revenue_thb:87658},
+{month:"2026-07",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:68,direct_bookings:22,price_freezes_created:66,converted_to_booking:46,avg_ticket_price_thb:18424,ticket_revenue_thb:1252832,freeze_fee_revenue_thb:72959},
+{month:"2026-08",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:63,direct_bookings:19,price_freezes_created:72,converted_to_booking:44,avg_ticket_price_thb:17523,ticket_revenue_thb:1103949,freeze_fee_revenue_thb:75699},
+{month:"2026-09",route_code:"BKK-HND",route_label:"BKK → HND",airline:"ANA",bookings:87,direct_bookings:28,price_freezes_created:93,converted_to_booking:59,avg_ticket_price_thb:20123,ticket_revenue_thb:1750701,freeze_fee_revenue_thb:112286},
+{month:"2025-10",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:25,direct_bookings:7,price_freezes_created:28,converted_to_booking:18,avg_ticket_price_thb:13498,ticket_revenue_thb:337450,freeze_fee_revenue_thb:22677},
+{month:"2025-11",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:29,direct_bookings:8,price_freezes_created:35,converted_to_booking:21,avg_ticket_price_thb:12653,ticket_revenue_thb:366937,freeze_fee_revenue_thb:26571},
+{month:"2025-12",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:42,direct_bookings:15,price_freezes_created:37,converted_to_booking:27,avg_ticket_price_thb:14046,ticket_revenue_thb:589932,freeze_fee_revenue_thb:31182},
+{month:"2026-01",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:28,direct_bookings:8,price_freezes_created:31,converted_to_booking:20,avg_ticket_price_thb:12325,ticket_revenue_thb:345100,freeze_fee_revenue_thb:22924},
+{month:"2026-02",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:45,direct_bookings:16,price_freezes_created:46,converted_to_booking:29,avg_ticket_price_thb:14017,ticket_revenue_thb:630765,freeze_fee_revenue_thb:38687},
+{month:"2026-03",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:39,direct_bookings:11,price_freezes_created:42,converted_to_booking:28,avg_ticket_price_thb:11624,ticket_revenue_thb:453336,freeze_fee_revenue_thb:29292},
+{month:"2026-04",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:41,direct_bookings:15,price_freezes_created:46,converted_to_booking:26,avg_ticket_price_thb:11908,ticket_revenue_thb:488228,freeze_fee_revenue_thb:32866},
+{month:"2026-05",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:52,direct_bookings:19,price_freezes_created:51,converted_to_booking:33,avg_ticket_price_thb:11641,ticket_revenue_thb:605332,freeze_fee_revenue_thb:35621},
+{month:"2026-06",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:54,direct_bookings:19,price_freezes_created:59,converted_to_booking:35,avg_ticket_price_thb:14375,ticket_revenue_thb:776250,freeze_fee_revenue_thb:50888},
+{month:"2026-07",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:54,direct_bookings:19,price_freezes_created:60,converted_to_booking:35,avg_ticket_price_thb:12917,ticket_revenue_thb:697518,freeze_fee_revenue_thb:46501},
+{month:"2026-08",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:67,direct_bookings:22,price_freezes_created:64,converted_to_booking:45,avg_ticket_price_thb:13061,ticket_revenue_thb:875087,freeze_fee_revenue_thb:50154},
+{month:"2026-09",route_code:"BKK-ICN",route_label:"BKK → ICN",airline:"Korean Air",bookings:87,direct_bookings:30,price_freezes_created:82,converted_to_booking:57,avg_ticket_price_thb:11762,ticket_revenue_thb:1023294,freeze_fee_revenue_thb:57869},
+{month:"2025-10",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:19,direct_bookings:5,price_freezes_created:23,converted_to_booking:14,avg_ticket_price_thb:6563,ticket_revenue_thb:124697,freeze_fee_revenue_thb:9057},
+{month:"2025-11",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:25,direct_bookings:8,price_freezes_created:25,converted_to_booking:17,avg_ticket_price_thb:7105,ticket_revenue_thb:177625,freeze_fee_revenue_thb:10658},
+{month:"2025-12",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:26,direct_bookings:9,price_freezes_created:29,converted_to_booking:17,avg_ticket_price_thb:6591,ticket_revenue_thb:171366,freeze_fee_revenue_thb:11468},
+{month:"2026-01",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:31,direct_bookings:9,price_freezes_created:36,converted_to_booking:22,avg_ticket_price_thb:6413,ticket_revenue_thb:198803,freeze_fee_revenue_thb:13852},
+{month:"2026-02",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:36,direct_bookings:13,price_freezes_created:35,converted_to_booking:23,avg_ticket_price_thb:5641,ticket_revenue_thb:203076,freeze_fee_revenue_thb:11846},
+{month:"2026-03",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:36,direct_bookings:13,price_freezes_created:32,converted_to_booking:23,avg_ticket_price_thb:6876,ticket_revenue_thb:247536,freeze_fee_revenue_thb:13202},
+{month:"2026-04",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:35,direct_bookings:11,price_freezes_created:37,converted_to_booking:24,avg_ticket_price_thb:5739,ticket_revenue_thb:200865,freeze_fee_revenue_thb:12741},
+{month:"2026-05",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:53,direct_bookings:16,price_freezes_created:50,converted_to_booking:37,avg_ticket_price_thb:7108,ticket_revenue_thb:376724,freeze_fee_revenue_thb:21324},
+{month:"2026-06",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:54,direct_bookings:17,price_freezes_created:54,converted_to_booking:37,avg_ticket_price_thb:5993,ticket_revenue_thb:323622,freeze_fee_revenue_thb:19417},
+{month:"2026-07",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:61,direct_bookings:19,price_freezes_created:59,converted_to_booking:42,avg_ticket_price_thb:6030,ticket_revenue_thb:367830,freeze_fee_revenue_thb:21346},
+{month:"2026-08",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:69,direct_bookings:26,price_freezes_created:64,converted_to_booking:43,avg_ticket_price_thb:7146,ticket_revenue_thb:493074,freeze_fee_revenue_thb:27441},
+{month:"2026-09",route_code:"BKK-SIN",route_label:"BKK → SIN",airline:"Thai Airways",bookings:67,direct_bookings:21,price_freezes_created:62,converted_to_booking:46,avg_ticket_price_thb:6529,ticket_revenue_thb:437443,freeze_fee_revenue_thb:24288}
+];
+const searchFunnel = [
+{month:"2025-10",searches:763,price_freezes_created:245,converted_to_booking:159},
+{month:"2025-11",searches:1003,price_freezes_created:313,converted_to_booking:191},
+{month:"2025-12",searches:895,price_freezes_created:308,converted_to_booking:211},
+{month:"2026-01",searches:1101,price_freezes_created:358,converted_to_booking:225},
+{month:"2026-02",searches:1243,price_freezes_created:397,converted_to_booking:260},
+{month:"2026-03",searches:1420,price_freezes_created:476,converted_to_booking:315},
+{month:"2026-04",searches:1903,price_freezes_created:543,converted_to_booking:333},
+{month:"2026-05",searches:1811,price_freezes_created:585,converted_to_booking:412},
+{month:"2026-06",searches:2034,price_freezes_created:637,converted_to_booking:438},
+{month:"2026-07",searches:2143,price_freezes_created:764,converted_to_booking:530},
+{month:"2026-08",searches:2272,price_freezes_created:804,converted_to_booking:483},
+{month:"2026-09",searches:2713,price_freezes_created:818,converted_to_booking:534}
+];
+
+const MONTHS = [...new Set(bookingsFact.map(r=>r.month))].sort();
+const ROUTE_META = [...new Map(bookingsFact.map(r=>[r.route_code,{code:r.route_code,label:r.route_label}])).values()];
+const ROUTE_COLORS = { "BKK-CNX":"#38bdf8","BKK-HKG":"#f4a100","BKK-HND":"#a78bfa","BKK-ICN":"#34d399","BKK-SIN":"#f472b6" };
+const allRoutes = () => new Set(ROUTE_META.map(r=>r.code));
+const BASE_FEE = 6; // ค่าธรรมเนียมเฉลี่ยที่ใช้สร้างข้อมูลใน bookings-fact.csv
+const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+let state = { range: 12, routes: allRoutes(), fee: BASE_FEE, elasticity: 8 };
+
+/* ======================= ตัวช่วยทั่วไป ======================= */
+const baht = n => '฿' + Math.round(n).toLocaleString('th-TH');
+const num = n => Math.round(n).toLocaleString('th-TH');
+const bahtShort = n => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return '฿' + (n / 1e6).toFixed(a >= 1e7 ? 1 : 2) + 'M';
+  if (a >= 1e3) return '฿' + Math.round(n / 1e3) + 'k';
+  return '฿' + Math.round(n);
+};
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function monthLabel(m) {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString('th-TH', { month: 'short', year: '2-digit' });
+}
+function sum(rows, key) { return rows.reduce((a, r) => a + r[key], 0); }
+function monthsInRange(n) { return MONTHS.slice(MONTHS.length - n); }
+function prevMonthsInRange(n) {
+  const endIdx = MONTHS.length - n;
+  return MONTHS.slice(Math.max(0, endIdx - n), endIdx);
+}
+function filteredFact(months) {
+  return bookingsFact.filter(r => months.includes(r.month) && state.routes.has(r.route_code));
+}
+function currentRows() { return filteredFact(monthsInRange(state.range)); }
+
+function computeKPIs(months) {
+  const rows = filteredFact(months);
+  const bookings = sum(rows, 'bookings');
+  const revenue = sum(rows, 'ticket_revenue_thb') + sum(rows, 'freeze_fee_revenue_thb');
+  const freezes = sum(rows, 'price_freezes_created');
+  const converted = sum(rows, 'converted_to_booking');
+  const conv = freezes ? converted / freezes * 100 : 0;
+  const avgPrice = bookings ? sum(rows, 'ticket_revenue_thb') / bookings : 0;
+  return { bookings, revenue, conv, avgPrice };
+}
+
+function deltaBadge(curr, prev) {
+  if (!prev) return '<span class="kpi-note">ไม่มีข้อมูลช่วงก่อนหน้าเปรียบเทียบ</span>';
+  const pct = ((curr - prev) / prev) * 100;
+  const up = pct >= 0;
+  return `<span class="kpi-delta ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(1)}% เทียบช่วงก่อนหน้า</span>`;
+}
+
+function tipHTML(title, rows) {
+  return `<div class="tip-title">${escapeHtml(title)}</div>` + rows.map(([color, label, value]) =>
+    `<div class="tip-row"><span>${color ? `<i class="tip-sw" style="background:${color}"></i>` : ''}${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>`
+  ).join('');
+}
+
+/* ======================= วาดกราฟด้วย Canvas 2D (ไม่พึ่งไลบรารีภายนอก) =======================
+   เลิกใช้ Chart.js เพราะถ้าเปิดไฟล์ตอนเน็ตหลุดหรือ CDN ถูกบล็อก กราฟจะว่างเปล่าทั้งหน้า
+   ทุกฟังก์ชัน draw รับ p (0→1 สำหรับแอนิเมชัน) และ hover (index ที่เมาส์ชี้อยู่, -1 = ไม่มี)
+   แล้วคืน "regions" ไว้ใช้ตรวจว่าเมาส์ชี้โดนส่วนไหนของกราฟ (ใช้ทำ tooltip และคลิกเพื่อกรอง) */
+const gridColor = 'rgba(255,255,255,0.08)';
+const tickColor = '#7c8ba1';
+
+function prepCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
+  const box = canvas.parentElement;
+  const w = Math.max(1, box.clientWidth), h = Math.max(1, box.clientHeight);
+  const tw = Math.round(w * dpr), th = Math.round(h * dpr);
+  if (canvas.width !== tw || canvas.height !== th) {
+    canvas.width = tw; canvas.height = th;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  ctx.globalAlpha = 1;
+  ctx.setLineDash([]);
+  ctx.font = "12px 'Kanit', sans-serif";
+  ctx.textBaseline = 'middle';
+  return { ctx, w, h };
+}
+function emptyMsg(ctx, w, h, msg) {
+  ctx.fillStyle = tickColor; ctx.textAlign = 'center'; ctx.fillText(msg, w / 2, h / 2);
+  return [];
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, Math.max(0, w), Math.max(0, h), r); else ctx.rect(x, y, w, h);
+}
+function niceMax(v) {
+  if (v <= 0) return 10;
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / mag;
+  const step = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].find(s => n <= s); // ขั้นละเอียดขึ้น กราฟจะไม่โล่งด้านบน
+  return step * mag;
+}
+
+// แท่งรายได้ (แกนซ้าย) + เส้นยอดจอง (แกนขวา)
+function drawCombo(canvas, d, p, hover) {
+  const { ctx, w, h } = prepCanvas(canvas);
+  if (!d.labels.length || !d.bars.some(v => v > 0)) return emptyMsg(ctx, w, h, 'ไม่มีข้อมูลในช่วงที่เลือก');
+  const padL = 58, padR = 42, padT = 32, padB = 28;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const maxBar = niceMax(Math.max(...d.bars)), maxLine = niceMax(Math.max(...d.lines));
+  const n = d.labels.length, slot = plotW / n;
+
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - plotH * i / 4;
+    ctx.strokeStyle = gridColor; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillStyle = tickColor;
+    ctx.textAlign = 'right'; ctx.fillText(bahtShort(maxBar * i / 4), padL - 8, y);
+    ctx.textAlign = 'left'; ctx.fillText(num(maxLine * i / 4), w - padR + 8, y);
+  }
+  if (hover >= 0) { ctx.fillStyle = 'rgba(56,189,248,0.10)'; ctx.fillRect(padL + hover * slot, padT, slot, plotH); }
+
+  const bw = Math.min(slot * 0.56, 48);
+  d.bars.forEach((v, i) => {
+    const bh = Math.max(0, v / maxBar * plotH * p);
+    ctx.globalAlpha = hover >= 0 && hover !== i ? 0.35 : 1;
+    ctx.fillStyle = '#38bdf8';
+    roundRectPath(ctx, padL + i * slot + (slot - bw) / 2, padT + plotH - bh, bw, bh, [4, 4, 0, 0]);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  const pts = d.lines.map((v, i) => [padL + i * slot + slot / 2, padT + plotH - v / maxLine * plotH * p]);
+  ctx.strokeStyle = '#f4a100'; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  pts.forEach(([x, y], i) => {
+    const big = i === hover;
+    ctx.beginPath(); ctx.arc(x, y, big ? 5.5 : 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#f4a100'; ctx.fill();
+    if (big) { ctx.lineWidth = 2; ctx.strokeStyle = '#0f2038'; ctx.stroke(); }
+  });
+
+  ctx.fillStyle = tickColor; ctx.textAlign = 'center';
+  const every = n > 8 && plotW < 700 ? 2 : 1;
+  d.labels.forEach((m, i) => {
+    if ((n - 1 - i) % every === 0) ctx.fillText(monthLabel(m), padL + i * slot + slot / 2, h - padB + 15);
+  });
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#38bdf8'; roundRectPath(ctx, padL, 7, 10, 10, 2); ctx.fill();
+  ctx.fillStyle = '#c5d0dc'; ctx.fillText('รายได้รวม (แกนซ้าย)', padL + 16, 12);
+  const lx = padL + 16 + ctx.measureText('รายได้รวม (แกนซ้าย)').width + 20;
+  ctx.strokeStyle = '#f4a100'; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(lx, 12); ctx.lineTo(lx + 18, 12); ctx.stroke();
+  ctx.fillStyle = '#c5d0dc'; ctx.fillText('ยอดจอง (แกนขวา)', lx + 24, 12);
+
+  return d.labels.map((m, i) => ({
+    index: i, tip: d.tips[i],
+    hit: (x, y) => x >= padL + i * slot && x < padL + (i + 1) * slot && y >= padT - 4 && y <= padT + plotH + 4,
+  }));
+}
+
+// โดนัทสัดส่วนรายได้ ตรงกลางแสดงยอดรวม หรือ % ของชิ้นที่เมาส์ชี้
+function drawDonut(canvas, d, p, hover) {
+  const { ctx, w, h } = prepCanvas(canvas);
+  const total = d.items.reduce((a, it) => a + it.value, 0);
+  if (!total) return emptyMsg(ctx, w, h, 'ไม่มีข้อมูล');
+  const cx = w / 2, cy = h / 2, rOuter = Math.min(w, h) / 2 - 10, rInner = rOuter * 0.62;
+
+  let start = -Math.PI / 2;
+  d.items.forEach((it, i) => {
+    const ang = it.value / total * Math.PI * 2 * p;
+    ctx.globalAlpha = hover >= 0 && hover !== i ? 0.4 : 1;
+    const rO = i === hover ? rOuter + 6 : rOuter;
+    ctx.beginPath(); ctx.arc(cx, cy, rO, start, start + ang); ctx.arc(cx, cy, rInner, start + ang, start, true); ctx.closePath();
+    ctx.fillStyle = it.color; ctx.fill();
+    start += ang;
+  });
+  ctx.globalAlpha = 1;
+
+  const focus = hover >= 0 ? d.items[hover] : null;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#e7edf3'; ctx.font = "600 17px 'Kanit', sans-serif";
+  ctx.fillText(focus ? (focus.value / total * 100).toFixed(1) + '%' : bahtShort(total), cx, cy - 8);
+  ctx.fillStyle = tickColor; ctx.font = "11.5px 'Kanit', sans-serif";
+  ctx.fillText(focus ? focus.label : 'รายได้รวม', cx, cy + 12);
+
+  let acc = 0;
+  const slices = d.items.map(it => { const s = acc; acc += it.value / total * Math.PI * 2; return [s, acc]; });
+  return d.items.map((it, i) => ({
+    index: i, tip: it.tip, onClick: it.onClick,
+    hit: (x, y) => {
+      const dx = x - cx, dy = y - cy, dist = Math.hypot(dx, dy);
+      if (dist < rInner || dist > rOuter + 8) return false;
+      let a = Math.atan2(dy, dx) + Math.PI / 2;
+      if (a < 0) a += Math.PI * 2;
+      return a >= slices[i][0] && a < slices[i][1];
+    },
+  }));
+}
+
+// แท่งแนวนอน (ใช้ทั้ง funnel และยอดจองต่อเส้นทาง)
+function drawHBar(canvas, d, p, hover) {
+  const { ctx, w, h } = prepCanvas(canvas);
+  if (!d.labels.length) return emptyMsg(ctx, w, h, 'ไม่มีข้อมูลในช่วงที่เลือก');
+  ctx.font = "12.5px 'Kanit', sans-serif";
+  const padL = Math.max(70, Math.max(...d.labels.map(l => ctx.measureText(l).width)) + 18);
+  const padR = Math.max(...d.valueLabels.map(l => ctx.measureText(l).width)) + 16;
+  const plotW = Math.max(10, w - padL - padR), rowH = (h - 8) / d.labels.length;
+  const max = Math.max(...d.values, 1);
+
+  return d.labels.map((label, i) => {
+    const y = 4 + i * rowH, barH = Math.min(rowH * 0.58, 30), by = y + (rowH - barH) / 2;
+    if (i === hover) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; roundRectPath(ctx, 0, y + 2, w, rowH - 4, 8); ctx.fill(); }
+    ctx.globalAlpha = hover >= 0 && hover !== i ? 0.4 : 1;
+    ctx.fillStyle = '#c5d0dc'; ctx.textAlign = 'right'; ctx.fillText(label, padL - 10, y + rowH / 2);
+    const bw = Math.max(2, d.values[i] / max * plotW * p);
+    ctx.fillStyle = d.colors[i]; roundRectPath(ctx, padL, by, bw, barH, [0, 6, 6, 0]); ctx.fill();
+    ctx.fillStyle = '#e7edf3'; ctx.textAlign = 'left'; ctx.fillText(d.valueLabels[i], padL + bw + 8, y + rowH / 2);
+    ctx.globalAlpha = 1;
+    return { index: i, tip: d.tips[i], onClick: d.onClicks ? d.onClicks[i] : null, hit: (x, yy) => yy >= y && yy < y + rowH };
+  });
+}
+
+// กราฟเส้นจิ๋วใน KPI การ์ด
+function drawSpark(canvas, d, p) {
+  const { ctx, w, h } = prepCanvas(canvas);
+  const v = d.values;
+  if (v.length < 2) return [];
+  const min = Math.min(...v), max = Math.max(...v), span = max - min || 1;
+  const pts = v.map((val, i) => [3 + i * (w - 8) / (v.length - 1), h - 4 - (val - min) / span * (h - 10)]);
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w * p, h); ctx.clip();
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  ctx.lineTo(pts[pts.length - 1][0], h); ctx.lineTo(pts[0][0], h); ctx.closePath();
+  ctx.fillStyle = d.fill; ctx.fill();
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+  ctx.strokeStyle = d.color; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.restore();
+  if (p >= 1) {
+    const [lx, ly] = pts[pts.length - 1];
+    ctx.beginPath(); ctx.arc(lx, ly, 2.8, 0, Math.PI * 2); ctx.fillStyle = d.color; ctx.fill();
+  }
+  return [];
+}
+
+// เส้นโค้งรายได้ค่าธรรมเนียม ตามอัตราค่าธรรมเนียมแต่ละระดับ (What-if)
+function drawWhatIf(canvas, d, p, hover) {
+  const { ctx, w, h } = prepCanvas(canvas);
+  if (!d.revs.some(v => v > 0)) return emptyMsg(ctx, w, h, 'เลือกอย่างน้อย 1 เส้นทางเพื่อจำลอง');
+  const padL = 58, padR = 20, padT = 30, padB = 28;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const fMin = d.fees[0], fMax = d.fees[d.fees.length - 1];
+  const maxY = niceMax(Math.max(...d.revs));
+  const X = f => padL + (f - fMin) / (fMax - fMin) * plotW;
+  const Y = v => padT + plotH - v / maxY * plotH;
+
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + plotH - plotH * i / 4;
+    ctx.strokeStyle = gridColor; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillStyle = tickColor; ctx.textAlign = 'right'; ctx.fillText(bahtShort(maxY * i / 4), padL - 8, y);
+  }
+  ctx.textAlign = 'center';
+  for (let f = fMin; f <= fMax + 1e-9; f += 2) ctx.fillText(f + '%', X(f), h - padB + 15);
+
+  ctx.save(); ctx.beginPath(); ctx.rect(padL, 0, plotW * p, h); ctx.clip();
+  ctx.beginPath(); d.fees.forEach((f, i) => i ? ctx.lineTo(X(f), Y(d.revs[i])) : ctx.moveTo(X(f), Y(d.revs[i])));
+  ctx.lineTo(X(fMax), padT + plotH); ctx.lineTo(X(fMin), padT + plotH); ctx.closePath();
+  ctx.fillStyle = 'rgba(56,189,248,0.12)'; ctx.fill();
+  ctx.beginPath(); d.fees.forEach((f, i) => i ? ctx.lineTo(X(f), Y(d.revs[i])) : ctx.moveTo(X(f), Y(d.revs[i])));
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2.4; ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.restore();
+
+  ctx.globalAlpha = p;
+  // เส้นประ = ค่าธรรมเนียมที่ใช้อยู่ตอนนี้
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X(d.baselineFee), padT); ctx.lineTo(X(d.baselineFee), padT + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+  // วงกลมกลวง = จุดที่รายได้ค่าธรรมเนียมสูงสุด
+  ctx.beginPath(); ctx.arc(X(d.optimumFee), Y(d.optimumRev), 7, 0, Math.PI * 2);
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2; ctx.stroke();
+  // จุดเหลือง = ค่าที่ผู้ใช้เลือก
+  const cx = X(d.currentFee), cy = Y(d.currentRev);
+  ctx.beginPath(); ctx.arc(cx, cy, 5.5, 0, Math.PI * 2); ctx.fillStyle = '#f4a100'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#0f2038'; ctx.stroke();
+  const label = `${d.currentFee}% → ${bahtShort(d.currentRev)}`;
+  ctx.font = "600 12px 'Kanit', sans-serif";
+  const lw = ctx.measureText(label).width + 14;
+  const lxBox = Math.min(Math.max(cx - lw / 2, padL), w - padR - lw);
+  const lyBox = cy - 34 < padT - 24 ? cy + 12 : cy - 34;
+  ctx.fillStyle = '#f4a100'; roundRectPath(ctx, lxBox, lyBox, lw, 22, 6); ctx.fill();
+  ctx.fillStyle = '#0a1628'; ctx.textAlign = 'center'; ctx.fillText(label, lxBox + lw / 2, lyBox + 11);
+  ctx.globalAlpha = 1;
+
+  if (hover >= 0) {
+    const hx = X(d.fees[hover]), hy = Y(d.revs[hover]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx, padT); ctx.lineTo(hx, padT + plotH); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fillStyle = '#38bdf8'; ctx.fill();
+  }
+
+  const step = plotW / (d.fees.length - 1);
+  return d.fees.map((f, i) => ({
+    index: i, tip: d.tips[i], onClick: () => setFee(f),
+    hit: (x, y) => y >= padT - 6 && y <= padT + plotH + 6 && Math.abs(x - X(f)) <= step / 2,
+  }));
+}
+
+/* ======================= ทะเบียนกราฟ + tooltip + คลิกเพื่อกรอง ======================= */
+const CHARTS = {
+  trendChart:  { draw: drawCombo },
+  shareChart:  { draw: drawDonut },
+  funnelChart: { draw: drawHBar },
+  routesChart: { draw: drawHBar },
+  whatifChart: { draw: drawWhatIf },
+};
+Object.values(CHARTS).forEach(c => { c.hover = -1; c.regions = []; c.p = 1; c.data = null; });
+
+function paint(id, p) {
+  const c = CHARTS[id], canvas = document.getElementById(id);
+  if (!c || !canvas || !c.data) return;
+  c.p = p;
+  c.regions = c.draw(canvas, c.data, p, c.hover) || [];
+}
+function paintAll(p) { Object.keys(CHARTS).forEach(id => paint(id, p ?? CHARTS[id].p)); }
+
+const tooltip = document.getElementById('tooltip');
+function showTip(html, clientX, clientY) {
+  tooltip.innerHTML = html;
+  tooltip.style.opacity = '1';
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  let x = clientX + 14, y = clientY + 14;
+  if (x + tw > window.innerWidth - 8) x = clientX - tw - 14;
+  if (y + th > window.innerHeight - 8) y = clientY - th - 14;
+  tooltip.style.transform = `translate(${Math.max(8, x)}px, ${Math.max(8, y)}px)`;
+}
+function hideTip() { tooltip.style.opacity = '0'; }
+
+function setupInteraction(id) {
+  const c = CHARTS[id], canvas = document.getElementById(id);
+  const regionAt = e => {
+    const rect = canvas.getBoundingClientRect();
+    return c.regions.find(r => r.hit(e.clientX - rect.left, e.clientY - rect.top));
+  };
+  canvas.addEventListener('mousemove', e => {
+    const r = regionAt(e);
+    const idx = r ? r.index : -1;
+    if (idx !== c.hover) { c.hover = idx; paint(id, c.p); }
+    canvas.style.cursor = r && r.onClick ? 'pointer' : 'default';
+    if (r) showTip(r.tip, e.clientX, e.clientY); else hideTip();
+  });
+  canvas.addEventListener('mouseleave', () => {
+    c.hover = -1; paint(id, c.p); hideTip(); canvas.style.cursor = 'default';
+  });
+  canvas.addEventListener('click', e => {
+    const r = regionAt(e);
+    if (r && r.onClick) { hideTip(); r.onClick(); }
+    else if (r) showTip(r.tip, e.clientX, e.clientY); // จอสัมผัสไม่มี hover ให้แตะเพื่อดูตัวเลขแทน
+  });
+}
+
+function syncFilterUI() {
+  document.querySelectorAll('#routeFilters .pill').forEach(b => b.classList.toggle('active', state.routes.has(b.dataset.code)));
+  document.querySelectorAll('#dateSeg button').forEach(b => b.classList.toggle('active', Number(b.dataset.range) === state.range));
+}
+
+// คลิกเส้นทางในกราฟ = ดูเฉพาะเส้นทางนั้น, คลิกซ้ำ = กลับไปดูทุกเส้นทาง
+function focusRoute(code) {
+  state.routes = (state.routes.size === 1 && state.routes.has(code)) ? allRoutes() : new Set([code]);
+  syncFilterUI();
+  render();
+}
+
+/* ======================= KPI การ์ด (ตัวเลขนับขึ้น + กราฟจิ๋ว) ======================= */
+const KPI_DEFS = [
+  { key: 'bookings', label: 'ยอดจองรวม',                      fmt: v => num(v) },
+  { key: 'revenue',  label: 'รายได้รวม',                       fmt: v => baht(v) },
+  { key: 'conv',     label: 'อัตราแปลง (ตรึงราคา → ออกตั๋ว)', fmt: v => v.toFixed(1) + '%' },
+  { key: 'avgPrice', label: 'ราคาเฉลี่ยต่อใบ',                 fmt: v => baht(v) },
+];
+document.getElementById('kpiGrid').innerHTML = KPI_DEFS.map(d => `
+  <div class="kpi-card">
+    <div class="kpi-label">${d.label}</div>
+    <div class="kpi-value" id="kpi-${d.key}">–</div>
+    <div id="kpidelta-${d.key}"></div>
+    <div class="spark"><canvas id="spark-${d.key}"></canvas></div>
+  </div>`).join('');
+KPI_DEFS.forEach(d => { CHARTS['spark-' + d.key] = { draw: drawSpark, hover: -1, regions: [], p: 1, data: null, noInteract: true }; });
+
+let kpiShown = { bookings: 0, revenue: 0, conv: 0, avgPrice: 0 };
+function setKpiValues(from, to, p) {
+  KPI_DEFS.forEach(d => {
+    document.getElementById('kpi-' + d.key).textContent = d.fmt(from[d.key] + (to[d.key] - from[d.key]) * p);
+  });
+}
+
+/* ======================= Insight อัตโนมัติ (เปลี่ยนตามตัวกรอง) ======================= */
+function buildInsights(rows, months) {
+  if (!rows.length) return [{ icon: 'ℹ️', title: 'ยังไม่มีข้อมูล', html: 'เลือกอย่างน้อย 1 เส้นทางเพื่อดูข้อสรุป' }];
+  const out = [];
+
+  const byR = ROUTE_META.filter(r => state.routes.has(r.code)).map(r => {
+    const rr = rows.filter(x => x.route_code === r.code);
+    const bk = sum(rr, 'bookings');
+    return { ...r, rev: sum(rr, 'ticket_revenue_thb') + sum(rr, 'freeze_fee_revenue_thb'), bk, avg: bk ? sum(rr, 'ticket_revenue_thb') / bk : 0 };
+  });
+  const totalRev = byR.reduce((a, r) => a + r.rev, 0);
+  if (byR.length >= 2) {
+    const topRev = [...byR].sort((a, b) => b.rev - a.rev)[0];
+    const topBk = [...byR].sort((a, b) => b.bk - a.bk)[0];
+    const share = (topRev.rev / totalRev * 100).toFixed(0);
+    const html = topRev.code !== topBk.code
+      ? `<b>${escapeHtml(topRev.label)}</b> ทำรายได้สูงสุด (${share}% ของรายได้) แม้ยอดจองน้อยกว่า <b>${escapeHtml(topBk.label)}</b> เพราะราคาตั๋วเฉลี่ยสูงกว่าราว ${(topRev.avg / topBk.avg).toFixed(1)} เท่า`
+      : `<b>${escapeHtml(topRev.label)}</b> นำทั้งยอดจองและรายได้ คิดเป็น ${share}% ของรายได้ทั้งหมด`;
+    out.push({ icon: '💰', title: 'เส้นทางที่ทำเงิน', html });
+  } else {
+    const allRev = bookingsFact.filter(r => months.includes(r.month)).reduce((a, r) => a + r.ticket_revenue_thb + r.freeze_fee_revenue_thb, 0);
+    out.push({ icon: '💰', title: 'เส้นทางที่เลือก', html: `<b>${escapeHtml(byR[0].label)}</b> คิดเป็น ${(totalRev / allRev * 100).toFixed(1)}% ของรายได้ทุกเส้นทางในช่วงเดียวกัน` });
+  }
+
+  const first = months[0], last = months[months.length - 1];
+  const bFirst = sum(rows.filter(r => r.month === first), 'bookings');
+  const bLast = sum(rows.filter(r => r.month === last), 'bookings');
+  if (bFirst > 0 && months.length > 1) {
+    const g = (bLast / bFirst - 1) * 100;
+    out.push({ icon: g >= 0 ? '📈' : '📉', title: 'แนวโน้ม',
+      html: `ยอดจอง ${monthLabel(last)} ${g >= 0 ? 'สูงกว่า' : 'ต่ำกว่า'} ${monthLabel(first)} <b>${Math.abs(g).toFixed(0)}%</b> (${num(bFirst)} → ${num(bLast)} ใบ)` });
+  }
+
+  const f = searchFunnel.filter(x => months.includes(x.month));
+  const s = sum(f, 'searches'), fr = sum(f, 'price_freezes_created'), cv = sum(f, 'converted_to_booking');
+  if (s > 0 && fr > 0) {
+    const r1 = fr / s * 100, r2 = cv / fr * 100;
+    const html = r1 < r2
+      ? `คนหลุดมากที่สุดช่วง <b>ค้นหา → ตรึงราคา</b> (ไปต่อเพียง ${r1.toFixed(0)}%) ขณะที่คนที่ตรึงราคาแล้วซื้อจริงถึง ${r2.toFixed(0)}% ควรเน้นให้คนกล้ากดตรึงราคามากขึ้น`
+      : `คนหลุดมากที่สุดช่วง <b>ตรึงราคา → ออกตั๋ว</b> (ซื้อจริงเพียง ${r2.toFixed(0)}%) ควรเน้นการเตือนก่อนสิทธิ์หมดอายุ`;
+    out.push({ icon: '🎯', title: 'โอกาสปรับปรุง', html });
+  }
+  return out;
+}
+
+/* ======================= What-if: จำลองการปรับค่าธรรมเนียม =======================
+   สมมติฐานอย่างง่าย: ขึ้นค่าธรรมเนียม 1% → จำนวนคนตรึงราคาลดลง "elasticity" %
+   (ลดค่าธรรมเนียม → คนตรึงราคาเพิ่มขึ้นในสัดส่วนเดียวกัน) แล้วคำนวณรายได้ค่าธรรมเนียมใหม่จากข้อมูลจริงที่กรองอยู่ */
+function simulate(rows, fee, elasticity) {
+  const factor = Math.max(0, 1 - (elasticity / 100) * (fee - BASE_FEE));
+  let freezes = 0, feeRev = 0, converted = 0;
+  rows.forEach(r => {
+    const fz = r.price_freezes_created * factor;
+    freezes += fz;
+    feeRev += fz * r.avg_ticket_price_thb * fee / 100;
+    converted += r.converted_to_booking * factor;
+  });
+  return { freezes, feeRev, converted };
+}
+function deltaInline(curr, base) {
+  if (!base) return '';
+  const pct = (curr / base - 1) * 100;
+  if (Math.abs(pct) < 0.05) return '<span class="wi-delta">เท่าเดิม</span>';
+  return `<span class="wi-delta ${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%</span>`;
+}
+function updateWhatIf(rows) {
+  const base = simulate(rows, BASE_FEE, state.elasticity);
+  const cur = simulate(rows, state.fee, state.elasticity);
+  const fees = [];
+  for (let f = 2; f <= 12 + 1e-9; f += 0.5) fees.push(Math.round(f * 10) / 10);
+  const revs = fees.map(f => simulate(rows, f, state.elasticity).feeRev);
+  const optIdx = revs.indexOf(Math.max(...revs));
+
+  CHARTS.whatifChart.data = {
+    fees, revs, baselineFee: BASE_FEE, currentFee: state.fee, currentRev: cur.feeRev,
+    optimumFee: fees[optIdx], optimumRev: revs[optIdx],
+    tips: fees.map((f, i) => tipHTML(`ค่าธรรมเนียม ${f}%`, [
+      ['#38bdf8', 'รายได้ค่าธรรมเนียม', baht(revs[i])],
+      [null, 'เทียบกับปัจจุบัน (6%)', base.feeRev ? ((revs[i] / base.feeRev - 1) * 100 >= 0 ? '+' : '') + ((revs[i] / base.feeRev - 1) * 100).toFixed(1) + '%' : '-'],
+      [null, '', 'คลิกเพื่อเลือกค่านี้'],
+    ])),
+  };
+
+  document.getElementById('wiFeeVal').textContent = state.fee + '%';
+  document.getElementById('wiElasVal').textContent = state.elasticity + '%';
+  document.getElementById('wiFeeRev').innerHTML = `${baht(cur.feeRev)} ${deltaInline(cur.feeRev, base.feeRev)}`;
+  document.getElementById('wiFreezes').innerHTML = `${num(cur.freezes)} ครั้ง ${deltaInline(cur.freezes, base.freezes)}`;
+  document.getElementById('wiTickets').innerHTML = `${num(cur.converted)} ใบ ${deltaInline(cur.converted, base.converted)}`;
+  document.getElementById('wiOptLabel').textContent = fees[optIdx] + '%';
+
+  let verdict;
+  if (!rows.length) verdict = 'เลือกอย่างน้อย 1 เส้นทางเพื่อจำลอง';
+  else if (state.elasticity === 0) verdict = 'ถ้าลูกค้าไม่ลดลงเลยเมื่อขึ้นค่าธรรมเนียม ยิ่งเก็บสูงยิ่งได้มาก ซึ่งไม่สมจริง ลองเพิ่ม "ความไวต่อราคา" ดู';
+  else {
+    const opt = fees[optIdx];
+    verdict = optIdx === fees.length - 1
+      ? `ภายใต้สมมติฐานนี้ รายได้ยังเพิ่มขึ้นเรื่อยๆ จนถึง ${opt}% (ลูกค้าไม่ค่อยอ่อนไหวต่อราคา)`
+      : `ภายใต้สมมติฐานนี้ รายได้ค่าธรรมเนียมสูงสุดที่ <b>${opt}%</b> (${bahtShort(revs[optIdx])}) `
+        + (Math.abs(state.fee - opt) < 0.01 ? '— ตรงกับค่าที่คุณเลือกพอดี'
+          : state.fee < opt ? '— ค่าที่เลือกยังต่ำกว่าจุดนี้' : '— ค่าที่เลือกสูงเกินไป ลูกค้าหายจนรายได้ลดลง');
+    if (state.fee > BASE_FEE && cur.converted < base.converted) {
+      verdict += ` · แต่ตั๋วที่ออกจากการตรึงราคาจะลดลง ${num(base.converted - cur.converted)} ใบ`;
+    }
+  }
+  document.getElementById('wiVerdict').innerHTML = verdict;
+}
+function setFee(f) {
+  state.fee = f;
+  document.getElementById('wiFee').value = f;
+  updateWhatIf(currentRows());
+  paint('whatifChart', 1);
+}
+
+/* ======================= render หลัก: เรียกใหม่ทุกครั้งที่ตัวกรองเปลี่ยน ======================= */
+let animToken = 0;
+function animateAll(kpiFrom, kpiTo) {
+  const token = ++animToken;
+  const dur = REDUCE_MOTION ? 0 : 700;
+  const start = performance.now();
+  const frame = now => {
+    if (token !== animToken) return;
+    const t = dur ? Math.min(1, (now - start) / dur) : 1;
+    const p = 1 - Math.pow(1 - t, 3); // easeOutCubic
+    Object.keys(CHARTS).forEach(id => paint(id, p));
+    setKpiValues(kpiFrom, kpiTo, p);
+    if (t < 1) requestAnimationFrame(frame);
+  };
+  if (!dur) { frame(start); return; }
+  requestAnimationFrame(frame);
+  setTimeout(() => { if (token === animToken) frame(start + dur); }, dur + 250); // กันกรณีแท็บถูกพักแอนิเมชัน
+}
+
+function render() {
+  const months = monthsInRange(state.range);
+  const prevMonths = prevMonthsInRange(state.range);
+  const rows = filteredFact(months);
+  Object.values(CHARTS).forEach(c => { c.hover = -1; });
+  hideTip();
+
+  // ---- KPI ----
+  const curr = computeKPIs(months);
+  const prev = prevMonths.length ? computeKPIs(prevMonths) : null;
+  KPI_DEFS.forEach(d => { document.getElementById('kpidelta-' + d.key).innerHTML = deltaBadge(curr[d.key], prev && prev[d.key]); });
+  const perMonth = months.map(m => {
+    const r = rows.filter(x => x.month === m);
+    const bk = sum(r, 'bookings'), tr = sum(r, 'ticket_revenue_thb'), fr = sum(r, 'price_freezes_created');
+    return { m, bookings: bk, revenue: tr + sum(r, 'freeze_fee_revenue_thb'), conv: fr ? sum(r, 'converted_to_booking') / fr * 100 : 0, avgPrice: bk ? tr / bk : 0 };
+  });
+  KPI_DEFS.forEach(d => {
+    const vals = perMonth.map(s => s[d.key]);
+    const up = vals[vals.length - 1] >= vals[0];
+    CHARTS['spark-' + d.key].data = { values: vals, color: up ? '#34d399' : '#f87171', fill: up ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.10)' };
+  });
+
+  // ---- ยอดจองและรายได้รายเดือน ----
+  CHARTS.trendChart.data = {
+    labels: perMonth.map(s => s.m), bars: perMonth.map(s => s.revenue), lines: perMonth.map(s => s.bookings),
+    tips: perMonth.map(s => tipHTML(monthLabel(s.m), [
+      ['#38bdf8', 'รายได้รวม', baht(s.revenue)],
+      ['#f4a100', 'ยอดจอง', num(s.bookings) + ' ใบ'],
+      [null, 'ราคาเฉลี่ยต่อใบ', baht(s.avgPrice)],
+    ])),
+  };
+
+  // ---- สัดส่วนรายได้ต่อเส้นทาง ----
+  const byRoute = ROUTE_META.filter(r => state.routes.has(r.code)).map(r => {
+    const rr = rows.filter(x => x.route_code === r.code);
+    const bk = sum(rr, 'bookings'), tr = sum(rr, 'ticket_revenue_thb');
+    return { ...r, revenue: tr + sum(rr, 'freeze_fee_revenue_thb'), bookings: bk, avg: bk ? tr / bk : 0,
+             airline: rr.length ? rr[0].airline : '' };
+  });
+  const totalRev = byRoute.reduce((a, r) => a + r.revenue, 0);
+  const totalBk = byRoute.reduce((a, r) => a + r.bookings, 0);
+  CHARTS.shareChart.data = {
+    items: byRoute.map(r => ({
+      label: r.label, value: r.revenue, color: ROUTE_COLORS[r.code], onClick: () => focusRoute(r.code),
+      tip: tipHTML(r.label, [
+        [ROUTE_COLORS[r.code], 'รายได้', baht(r.revenue)],
+        [null, 'สัดส่วน', totalRev ? (r.revenue / totalRev * 100).toFixed(1) + '%' : '-'],
+        [null, 'สายการบิน', r.airline],
+        [null, '', state.routes.size === 1 ? 'คลิกเพื่อดูทุกเส้นทาง' : 'คลิกเพื่อดูเฉพาะเส้นทางนี้'],
+      ]),
+    })),
+  };
+  document.getElementById('shareLegend').innerHTML = byRoute.map((r, i) => `
+    <div class="legend-row" data-code="${r.code}" data-index="${i}">
+      <span class="legend-name"><span class="legend-sw" style="background:${ROUTE_COLORS[r.code]}"></span>${escapeHtml(r.label)}</span>
+      <b>${totalRev ? (r.revenue / totalRev * 100).toFixed(1) : '0.0'}%</b>
+    </div>`).join('');
+
+  // ---- Funnel (ตามช่วงเวลาเท่านั้น) ----
+  const fRows = searchFunnel.filter(x => months.includes(x.month));
+  const fv = [sum(fRows, 'searches'), sum(fRows, 'price_freezes_created'), sum(fRows, 'converted_to_booking')];
+  const stages = ['ค้นหา', 'ตรึงราคา', 'ออกตั๋วจริง'];
+  CHARTS.funnelChart.data = {
+    labels: stages, values: fv, colors: ['#64748b', '#38bdf8', '#f4a100'],
+    valueLabels: fv.map((v, i) => i === 0 ? num(v) : `${num(v)} (${fv[i - 1] ? (v / fv[i - 1] * 100).toFixed(0) : 0}%)`),
+    tips: fv.map((v, i) => tipHTML(stages[i], [
+      [null, 'จำนวน', num(v) + ' ครั้ง'],
+      [null, 'ไปต่อจากขั้นก่อนหน้า', i === 0 ? '-' : (fv[i - 1] ? (v / fv[i - 1] * 100).toFixed(1) + '%' : '-')],
+      [null, 'เทียบกับคนที่ค้นหาทั้งหมด', fv[0] ? (v / fv[0] * 100).toFixed(1) + '%' : '-'],
+    ])),
+  };
+
+  // ---- ยอดจองต่อเส้นทาง ----
+  const routeBookings = [...byRoute].sort((a, b) => b.bookings - a.bookings);
+  CHARTS.routesChart.data = {
+    labels: routeBookings.map(r => r.label), values: routeBookings.map(r => r.bookings),
+    colors: routeBookings.map(r => ROUTE_COLORS[r.code]), valueLabels: routeBookings.map(r => num(r.bookings)),
+    onClicks: routeBookings.map(r => () => focusRoute(r.code)),
+    tips: routeBookings.map(r => tipHTML(r.label, [
+      [ROUTE_COLORS[r.code], 'ยอดจอง', num(r.bookings) + ' ใบ'],
+      [null, 'สัดส่วนยอดจอง', totalBk ? (r.bookings / totalBk * 100).toFixed(1) + '%' : '-'],
+      [null, 'ราคาเฉลี่ยต่อใบ', baht(r.avg)],
+      [null, '', state.routes.size === 1 ? 'คลิกเพื่อดูทุกเส้นทาง' : 'คลิกเพื่อดูเฉพาะเส้นทางนี้'],
+    ])),
+  };
+
+  // ---- Insight ----
+  document.getElementById('insights').innerHTML = buildInsights(rows, months).map(it => `
+    <div class="insight">
+      <div class="insight-icon">${it.icon}</div>
+      <div><div class="insight-title">${it.title}</div><p>${it.html}</p></div>
+    </div>`).join('');
+
+  // ---- What-if ----
+  updateWhatIf(rows);
+
+  // ---- ตารางข้อมูลดิบ ----
+  document.querySelector('#factTable tbody').innerHTML = [...rows]
+    .sort((a, b) => a.month === b.month ? a.route_label.localeCompare(b.route_label) : a.month.localeCompare(b.month))
+    .map(r => `
+      <tr>
+        <td>${r.month}</td><td>${escapeHtml(r.route_label)}</td><td>${escapeHtml(r.airline)}</td>
+        <td>${num(r.bookings)}</td><td>${num(r.direct_bookings)}</td><td>${num(r.price_freezes_created)}</td><td>${num(r.converted_to_booking)}</td>
+        <td>${baht(r.avg_ticket_price_thb)}</td><td>${baht(r.ticket_revenue_thb)}</td><td>${baht(r.freeze_fee_revenue_thb)}</td>
+      </tr>`).join('');
+
+  const from = { ...kpiShown };
+  kpiShown = { ...curr };
+  animateAll(from, curr);
+}
+
+/* ======================= ปุ่ม/ตัวกรอง/อีเวนต์ ======================= */
+const routeFilterEl = document.getElementById('routeFilters');
+ROUTE_META.forEach(r => {
+  const btn = document.createElement('button');
+  btn.className = 'pill active';
+  btn.textContent = r.label;
+  btn.dataset.code = r.code;
+  btn.addEventListener('click', () => {
+    if (state.routes.has(r.code)) state.routes.delete(r.code); else state.routes.add(r.code);
+    syncFilterUI(); render();
+  });
+  routeFilterEl.appendChild(btn);
+});
+
+document.getElementById('dateSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  state.range = Number(btn.dataset.range);
+  syncFilterUI(); render();
+});
+
+document.getElementById('resetFilters').addEventListener('click', () => {
+  state.range = 12; state.routes = allRoutes();
+  syncFilterUI(); render();
+});
+
+// legend ของโดนัท: ชี้แล้วไฮไลต์ชิ้นในกราฟ, คลิกแล้วกรองเส้นทาง
+const legendEl = document.getElementById('shareLegend');
+legendEl.addEventListener('click', e => { const row = e.target.closest('[data-code]'); if (row) focusRoute(row.dataset.code); });
+legendEl.addEventListener('mouseover', e => {
+  const row = e.target.closest('[data-index]');
+  const idx = row ? Number(row.dataset.index) : -1;
+  if (idx !== CHARTS.shareChart.hover) { CHARTS.shareChart.hover = idx; paint('shareChart', CHARTS.shareChart.p); }
+});
+legendEl.addEventListener('mouseleave', () => { CHARTS.shareChart.hover = -1; paint('shareChart', CHARTS.shareChart.p); });
+
+document.getElementById('wiFee').addEventListener('input', e => setFee(Number(e.target.value)));
+document.getElementById('wiElas').addEventListener('input', e => {
+  state.elasticity = Number(e.target.value);
+  updateWhatIf(currentRows());
+  paint('whatifChart', 1);
+});
+
+Object.keys(CHARTS).forEach(id => { if (!CHARTS[id].noInteract) setupInteraction(id); });
+
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => paintAll(), 120); });
+window.addEventListener('scroll', hideTip, { passive: true });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => paintAll());
+
+render();
+
+/* ======================= แถบเส้นทางบิน: เครื่องบินเลื่อนตามการสกอลล์ ======================= */
+(function flightStrip() {
+  const sections = [...document.querySelectorAll('section.waypoint')];
+  const track = document.getElementById('stripTrack');
+  const fill = document.getElementById('stripFill');
+  const plane = document.getElementById('stripPlane');
+  const stage = document.getElementById('stripStage');
+  const dots = sections.slice(1).map(() => {
+    const d = document.createElement('span'); d.className = 'strip-wp'; track.insertBefore(d, plane); return d;
+  });
+  const READ_LINE = 0.35; // ระดับสายตาตอนอ่านหัวข้อ (35% จากขอบบนจอ) ใช้ตัดสินว่ากำลังอยู่ที่ waypoint ไหน
+  function update() {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+    fill.style.width = (pct * 100) + '%';
+    plane.style.left = (pct * 100) + '%';
+    sections.slice(1).forEach((s, i) => {
+      const top = s.getBoundingClientRect().top + window.scrollY;
+      const at = max > 0 ? Math.min(1, Math.max(0, (top - window.innerHeight * READ_LINE) / max)) : 0;
+      dots[i].style.left = (at * 100) + '%';
+      dots[i].classList.toggle('passed', pct >= at - 0.001);
+    });
+    let idx = 0;
+    sections.forEach((s, i) => { if (s.getBoundingClientRect().top < window.innerHeight * READ_LINE) idx = i; });
+    if (pct > 0.995) idx = sections.length - 1;
+    stage.textContent = sections[idx].dataset.stage;
+  }
+  document.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  document.querySelector('.table-panel').addEventListener('toggle', update);
+  update();
+
+  // เครื่องบินใน hero บินวนเฉพาะเมื่อผู้ใช้ไม่ได้ตั้งค่าลดการเคลื่อนไหว
+  const heroSvg = document.getElementById('heroPath');
+  if (REDUCE_MOTION && heroSvg.pauseAnimations) heroSvg.pauseAnimations();
+
+  // ตัวเลข Waypoint 1 คำนวณจากข้อมูลจริง ไม่พิมพ์ค่าตายตัว
+  const s = sum(searchFunnel, 'searches'), f = sum(searchFunnel, 'price_freezes_created');
+  document.getElementById('statFreezeRate').textContent = s ? Math.round(f / s * 100) + '%' : '–';
+})();
+</script>
+</body>
+</html>
